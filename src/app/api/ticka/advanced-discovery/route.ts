@@ -118,7 +118,7 @@ export async function GET() {
                 fields = Object.keys(sampleData);
               }
             }
-          } catch (parseError) {
+          } catch {
             // Ignore parse errors for now
           }
         }

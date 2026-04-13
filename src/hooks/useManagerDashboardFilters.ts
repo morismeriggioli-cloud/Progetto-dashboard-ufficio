@@ -94,9 +94,7 @@ export function useManagerDashboardFilters() {
       appliedStore,
       appliedEventStatus,
       appliedVenue,
-      appliedRange.from,
-      appliedRange.preset,
-      appliedRange.to,
+      appliedRange,
     ]
   );
 
@@ -148,7 +146,7 @@ export function useManagerDashboardFilters() {
     }
 
     return null;
-  }, [tempRange.from, tempRange.preset, tempRange.to]);
+  }, [tempRange.from, tempRange.to]);
 
   const canApply = isDirty && !validationMessage;
   const shouldShowApply = true;

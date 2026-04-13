@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { X, Save, Smartphone } from "lucide-react";
+import { X, Save } from "lucide-react";
 import type { PalmareDeviceForm, PalmareDeviceStatus } from "@/lib/palmari";
 
 type DeviceModalProps = {

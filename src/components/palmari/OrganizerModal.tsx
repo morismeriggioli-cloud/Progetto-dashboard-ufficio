@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { X, Save, Users } from "lucide-react";
+import { X, Save } from "lucide-react";
 import type { PalmareOrganizerForm } from "@/lib/palmari";
 
 type OrganizerModalProps = {

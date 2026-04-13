@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Plus, Trash2, Save, Users, Smartphone, Calendar, UserPlus } from "lucide-react";
+import { X, Save, Users, Smartphone, Calendar, UserPlus } from "lucide-react";
 import type { 
   PalmareDeviceForm, 
   PalmareOrganizerForm, 
   PalmareAssignmentForm, 
   PalmareOrganizerShowForm,
   PalmareDevice,
+  PalmareDeviceStatus,
   PalmareOrganizer 
 } from "@/lib/palmari";
 
@@ -114,7 +115,7 @@ export default function PalmariEditorModal({
         <label className="block text-sm font-medium text-gray-700 mb-1">Stato</label>
         <select
           value={deviceForm.status}
-          onChange={(e) => onDeviceFormChange("status", e.target.value as any)}
+          onChange={(e) => onDeviceFormChange("status", e.target.value as PalmareDeviceStatus)}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#4ec4c5] focus:outline-none focus:ring-1 focus:ring-[#4ec4c5]/20"
         >
           <option value="disponibile">Disponibile</option>

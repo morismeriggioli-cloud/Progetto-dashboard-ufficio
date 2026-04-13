@@ -1300,29 +1300,6 @@ function buildSummarySeries(
   });
 }
 
-function isInternalOpenFlow(row: TickaEmissioneNormalizedRow, transaction?: TickaTransazioneNormalizedRow) {
-  const specieEmissione = row.specieEmissione.toUpperCase();
-  if (!specieEmissione.includes("OPEN")) {
-    return false;
-  }
-
-  const richiedente = transaction?.codiceRichiedenteEmissioneSigillo ?? "";
-  const causale = transaction?.causale ?? "";
-  const hasZeroEconomicValue =
-    row.price <= 0 &&
-    row.presale <= 0 &&
-    row.managementFee <= 0 &&
-    row.commissionAmount <= 0 &&
-    row.rateoAmount <= 0 &&
-    row.rateoPresale <= 0;
-
-  return (
-    richiedente !== "CW000001" ||
-    /PASS|ESPOSITOR|FLYER|INVITO|SERVIZIO/i.test(causale) ||
-    (hasZeroEconomicValue && /GENERICO/i.test(causale))
-  );
-}
-
 function isSubscriptionRow(row: TickaEmissioneNormalizedRow) {
   return row.specieEmissione.toUpperCase().includes("ABBONAMENTO");
 }
@@ -1385,79 +1362,6 @@ function isAccountingRowCancelled(
   transaction?: TickaTransazioneNormalizedRow
 ) {
   return row.isCancelled || transaction?.annullamento === "S";
-}
-
-type StandardSubscriptionGroup = {
-  key: string;
-  rows: number;
-  organizer: string;
-  reductionLabel: string;
-  specieEmissione: string;
-  priceCurrent: number;
-  presaleCurrent: number;
-  managementCurrent: number;
-};
-
-function buildStandardSubscriptionBusinessAdjustment(rows: TickaEmissioneNormalizedRow[]) {
-  const groups = new Map<string, StandardSubscriptionGroup>();
-
-  rows.forEach((row) => {
-    if (row.isCancelled || !row.orderNumber || !isSubscriptionRow(row) || isOpenSubscriptionRow(row)) {
-      return;
-    }
-
-    const key = row.cardProgressive || row.seal || row.titleId || row.orderNumber;
-    const current = groups.get(key) ?? {
-      key,
-      rows: 0,
-      organizer: row.organizer,
-      reductionLabel: row.reductionLabel,
-      specieEmissione: row.specieEmissione,
-      priceCurrent: 0,
-      presaleCurrent: 0,
-      managementCurrent: 0,
-    };
-
-    current.rows += 1;
-    current.priceCurrent += getAccountingEmissionAmount(row);
-    current.presaleCurrent += getAccountingPresaleAmount(row);
-    current.managementCurrent += getAccountingManagementAmount(row);
-    groups.set(key, current);
-  });
-
-  const values = Array.from(groups.values()).map((group) => ({
-    ...group,
-    priceCurrent: round(group.priceCurrent),
-    presaleCurrent: round(group.presaleCurrent),
-    managementCurrent: round(group.managementCurrent),
-  }));
-
-  if (values.length !== 3) {
-    return null;
-  }
-
-  const [first] = values;
-  const isUniform = values.every(
-    (group) =>
-      group.specieEmissione === "RATEO ABBONAMENTO" &&
-      group.organizer === first.organizer &&
-      group.reductionLabel === first.reductionLabel &&
-      group.priceCurrent === first.priceCurrent &&
-      group.presaleCurrent === first.presaleCurrent &&
-      group.managementCurrent === first.managementCurrent &&
-      group.rows >= 5
-  );
-
-  if (!isUniform) {
-    return null;
-  }
-
-  return {
-    extraSubscriptions: 1,
-    extraEmissioni: first.priceCurrent,
-    extraPrevendita: first.presaleCurrent,
-    extraGestione: first.managementCurrent,
-  };
 }
 
 function buildDashboardSummary(

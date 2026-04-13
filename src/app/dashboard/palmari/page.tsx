@@ -32,13 +32,9 @@ import OrganizerModal from "@/components/palmari/OrganizerModal";
 import AssignmentModal from "@/components/palmari/AssignmentModal";
 import ShowModal from "@/components/palmari/ShowModal";
 import {
-  buildPalmareAssignmentRecord,
   buildPalmareDeviceRecord,
-  buildPalmareOrganizerRecord,
-  buildPalmareOrganizerShowRecord,
   buildPalmareRows,
   computePalmariKpis,
-  createEntityId,
   getPalmariMockState,
   getPalmariOrganizerOptions,
   normalizePalmareDevice,
@@ -53,7 +49,6 @@ import {
   type PalmareOrganizerShow,
   type PalmareOrganizerShowForm,
   type PalmareReturnForm,
-  type PalmareTrackingRecord,
 } from "@/lib/palmari";
 import {
   createPalmareAssignment,
@@ -70,10 +65,8 @@ import {
   updatePalmareOrganizer,
   returnPalmareDevice,
   fetchPalmareTracking,
-  updatePalmareStatus,
 } from "@/lib/palmari-repository";
 
-type EntryMode = "device" | "organizer" | "assignment" | "show";
 type PalmariTab = "censimento" | "organizzatori" | "disponibilita";
 
 const initialDeviceForm: PalmareDeviceForm = {
@@ -161,7 +154,7 @@ export default function PalmariPage() {
   const [organizers, setOrganizers] = useState<PalmareOrganizer[]>([]);
   const [assignments, setAssignments] = useState<PalmareAssignment[]>([]);
   const [organizerShows, setOrganizerShows] = useState<PalmareOrganizerShow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -175,22 +168,17 @@ export default function PalmariPage() {
   const [appliedOrganizerId, setAppliedOrganizerId] = useState("");
   const [appliedStatus, setAppliedStatus] = useState<"Tutti" | PalmareComputedStatus>("Tutti");
   const [activeTab, setActiveTab] = useState<PalmariTab>("censimento");
-  const [entryMode, setEntryMode] = useState<EntryMode>("device");
   const [deviceForm, setDeviceForm] = useState<PalmareDeviceForm>(initialDeviceForm);
   const [organizerForm, setOrganizerForm] = useState<PalmareOrganizerForm>(initialOrganizerForm);
   const [assignmentForm, setAssignmentForm] = useState<PalmareAssignmentForm>(initialAssignmentForm);
   const [showForm, setShowForm] = useState<PalmareOrganizerShowForm>(initialShowForm);
   const [deviceEditorMode, setDeviceEditorMode] = useState<"create" | "edit">("create");
   const [deviceEditorDeviceId, setDeviceEditorDeviceId] = useState<string | null>(null);
-  const [isDeviceEditorOpen, setIsDeviceEditorOpen] = useState(false);
-  const [selectedOrganizerDetailId, setSelectedOrganizerDetailId] = useState<string | null>(null);
   const [organizerEditId, setOrganizerEditId] = useState<string | null>(null);
   const [noteDeviceId, setNoteDeviceId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [statusDraft, setStatusDraft] = useState<PalmareDeviceStatus>("disponibile");
   const [returnModalDeviceId, setReturnModalDeviceId] = useState<string | null>(null);
-  const [trackingRecords, setTrackingRecords] = useState<PalmareTrackingRecord[]>([]);
-  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
   
   // Stati per modali separati
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
@@ -343,7 +331,6 @@ export default function PalmariPage() {
   const closeDeviceEditor = () => {
     setDeviceEditorMode("create");
     setDeviceEditorDeviceId(null);
-    setIsDeviceEditorOpen(false);
     setDeviceForm(initialDeviceForm);
   };
 
@@ -398,16 +385,10 @@ export default function PalmariPage() {
   const openTrackingModal = async (deviceId: string) => {
     try {
       const records = await fetchPalmareTracking(deviceId);
-      setTrackingRecords(records);
-      setIsTrackingModalOpen(true);
+      setInfoMessage(`Storico palmare caricato: ${records.length} movimenti trovati.`);
     } catch (error) {
       setError(shouldUseSessionFallback(error) ? "Errore di rete. Riprova più tardi." : `Errore: ${error instanceof Error ? error.message : String(error)}`);
     }
-  };
-
-  const closeTrackingModal = () => {
-    setIsTrackingModalOpen(false);
-    setTrackingRecords([]);
   };
 
   const openDeviceEditor = (deviceId?: string) => {
@@ -880,7 +861,6 @@ export default function PalmariPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedOrganizerDetailId(row.id);
                           setActiveTab("disponibilita");
                         }}
                         className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-[#4ec4c5] hover:text-[#158184]"

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { X, Save, UserPlus } from "lucide-react";
+import { X, Save } from "lucide-react";
 import type { PalmareAssignmentForm, PalmareDevice, PalmareOrganizer } from "@/lib/palmari";
 
 type AssignmentModalProps = {

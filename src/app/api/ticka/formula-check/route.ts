@@ -8,7 +8,24 @@ import { fetchTicka } from "@/lib/ticka";
 export const dynamic = "force-dynamic";
 
 type FormulaCheckApiResponse = {
-    result?: Array<Record<string, any>>;
+    result?: TickaFormulaRecord[];
+};
+
+type TickaFormulaRecord = {
+    annullamento?: string;
+    tipoTitolo?: string;
+    causale?: string;
+    partnerId?: string | number;
+    tipoOperazione?: string;
+    descrizione?: string;
+    nomeEvento?: string;
+    importo?: number;
+    codiceRichiedenteEmissioneSigillo?: string;
+    stato?: string;
+    statoPagamento?: string;
+    regolato?: boolean;
+    classePagamento?: string | number;
+    [key: string]: unknown;
 };
 
 export async function GET(request: Request) {
@@ -72,7 +89,7 @@ export async function GET(request: Request) {
             // Test 1: Filtri diretti su emissioni
             const emissioniResponse = await fetchTicka<FormulaCheckApiResponse>(`/ReportEmissioni/EmissioniPerData?data=${dateParam}`);
             if (emissioniResponse?.result) {
-                const annulliS = emissioniResponse.result.filter((e: any) => e.annullamento === 'S');
+                const annulliS = emissioniResponse.result.filter((e) => e.annullamento === 'S');
                 results.annulli.push({
                     formula: 'emissioni.filter(annullamento === "S")',
                     value: annulliS.length,
@@ -84,9 +101,9 @@ export async function GET(request: Request) {
                 });
 
                 // Test 2: Per TipoTitolo
-                const tipiTitolo = [...new Set(emissioniResponse.result.map((e: any) => e.tipoTitolo))];
+                const tipiTitolo = [...new Set(emissioniResponse.result.map((e) => e.tipoTitolo))];
                 for (const tipo of tipiTitolo) {
-                    const annulliTipo = emissioniResponse.result.filter((e: any) => 
+                    const annulliTipo = emissioniResponse.result.filter((e) =>
                         e.annullamento === 'S' && e.tipoTitolo === tipo
                     );
                     if (annulliTipo.length > 0) {
@@ -103,9 +120,9 @@ export async function GET(request: Request) {
                 }
 
                 // Test 3: Per Causale
-                const causali = [...new Set(emissioniResponse.result.map((e: any) => e.causale))];
+                const causali = [...new Set(emissioniResponse.result.map((e) => e.causale))];
                 for (const causale of causali) {
-                    const annulliCausale = emissioniResponse.result.filter((e: any) => 
+                    const annulliCausale = emissioniResponse.result.filter((e) =>
                         e.annullamento === 'S' && e.causale === causale
                     );
                     if (annulliCausale.length > 0 && Math.abs(annulliCausale.length - targets.annulli) < 10) {
@@ -122,9 +139,9 @@ export async function GET(request: Request) {
                 }
 
                 // Test 4: Per PartnerId
-                const partnerIds = [...new Set(emissioniResponse.result.map((e: any) => e.partnerId))];
+                const partnerIds = [...new Set(emissioniResponse.result.map((e) => e.partnerId))];
                 for (const partnerId of partnerIds) {
-                    const annulliPartner = emissioniResponse.result.filter((e: any) => 
+                    const annulliPartner = emissioniResponse.result.filter((e) =>
                         e.annullamento === 'S' && e.partnerId === partnerId
                     );
                     if (annulliPartner.length > 0 && Math.abs(annulliPartner.length - targets.annulli) < 5) {
@@ -148,7 +165,7 @@ export async function GET(request: Request) {
         try {
             const transazioniResponse = await fetchTicka<FormulaCheckApiResponse>(`/logtransazioni/date/data/${dateParam}`);
             if (transazioniResponse?.result) {
-                const annulliTrans = transazioniResponse.result.filter((t: any) => 
+                const annulliTrans = transazioniResponse.result.filter((t) =>
                     t.annullamento === 'S' || t.tipoOperazione?.includes('ANNULL')
                 );
                 if (annulliTrans.length > 0) {
@@ -177,7 +194,7 @@ export async function GET(request: Request) {
                 // Pattern 1: Descrizioni contenenti docente/18app
                 const docenteKeywords = ['docente', '18app', '18app', 'carta', 'bonus', 'ministero'];
                 for (const keyword of docenteKeywords) {
-                    const docenteRecords = emissioniResponse.result.filter((e: any) => 
+                    const docenteRecords = emissioniResponse.result.filter((e) =>
                         e.descrizione?.toLowerCase().includes(keyword) ||
                         e.tipoTitolo?.toLowerCase().includes(keyword) ||
                         e.causale?.toLowerCase().includes(keyword) ||
@@ -185,7 +202,7 @@ export async function GET(request: Request) {
                     );
                     
                     if (docenteRecords.length > 0) {
-                        const importoDocente = docenteRecords.reduce((sum: number, e: any) => sum + (e.importo || 0), 0);
+                        const importoDocente = docenteRecords.reduce((sum, e) => sum + (e.importo || 0), 0);
                         results.cartaDelDocente.push({
                             formula: `emissioni.filter(descrizione.toLowerCase().includes("${keyword}"))`,
                             value: importoDocente,
@@ -199,10 +216,10 @@ export async function GET(request: Request) {
                 }
 
                 // Pattern 2: PartnerId specifici per docente
-                const partnerIds = [...new Set(emissioniResponse.result.map((e: any) => e.partnerId))];
+                const partnerIds = [...new Set(emissioniResponse.result.map((e) => e.partnerId))];
                 for (const partnerId of partnerIds) {
-                    const partnerRecords = emissioniResponse.result.filter((e: any) => e.partnerId === partnerId);
-                    const importoPartner = partnerRecords.reduce((sum: number, e: any) => sum + (e.importo || 0), 0);
+                    const partnerRecords = emissioniResponse.result.filter((e) => e.partnerId === partnerId);
+                    const importoPartner = partnerRecords.reduce((sum, e) => sum + (e.importo || 0), 0);
                     
                     if (Math.abs(importoPartner - targets.cartaDelDocente) < 100) {
                         results.cartaDelDocente.push({
@@ -218,11 +235,11 @@ export async function GET(request: Request) {
                 }
 
                 // Pattern 3: CodiceRichiedenteEmissioneSigillo
-                const codiciRichiedente = [...new Set(emissioniResponse.result.map((e: any) => e.codiceRichiedenteEmissioneSigillo))];
+                const codiciRichiedente = [...new Set(emissioniResponse.result.map((e) => e.codiceRichiedenteEmissioneSigillo))];
                 for (const codice of codiciRichiedente) {
                     if (codice && codice.toLowerCase().includes('docente')) {
-                        const codiceRecords = emissioniResponse.result.filter((e: any) => e.codiceRichiedenteEmissioneSigillo === codice);
-                        const importoCodice = codiceRecords.reduce((sum: number, e: any) => sum + (e.importo || 0), 0);
+                        const codiceRecords = emissioniResponse.result.filter((e) => e.codiceRichiedenteEmissioneSigillo === codice);
+                        const importoCodice = codiceRecords.reduce((sum, e) => sum + (e.importo || 0), 0);
                         
                         results.cartaDelDocente.push({
                             formula: `emissioni.filter(codiceRichiedenteEmissioneSigillo contains "docente")`,
@@ -249,7 +266,7 @@ export async function GET(request: Request) {
                 // Pattern per cultura
                 const culturaKeywords = ['cultura', 'cultura', 'cultural', 'museo', 'teatro', 'cinema', 'libri', 'spettacolo'];
                 for (const keyword of culturaKeywords) {
-                    const culturaRecords = emissioniResponse.result.filter((e: any) => 
+                    const culturaRecords = emissioniResponse.result.filter((e) =>
                         e.descrizione?.toLowerCase().includes(keyword) ||
                         e.tipoTitolo?.toLowerCase().includes(keyword) ||
                         e.causale?.toLowerCase().includes(keyword) ||
@@ -257,7 +274,7 @@ export async function GET(request: Request) {
                     );
                     
                     if (culturaRecords.length > 0) {
-                        const importoCultura = culturaRecords.reduce((sum: number, e: any) => sum + (e.importo || 0), 0);
+                        const importoCultura = culturaRecords.reduce((sum, e) => sum + (e.importo || 0), 0);
                         results.cartaCultura.push({
                             formula: `emissioni.filter(descrizione.toLowerCase().includes("${keyword}"))`,
                             value: importoCultura,
@@ -281,15 +298,13 @@ export async function GET(request: Request) {
             const emissioniResponse = await fetchTicka<FormulaCheckApiResponse>(`/ReportEmissioni/EmissioniPerData?data=${dateParam}`);
             if (emissioniResponse?.result) {
                 // Pattern 1: Differenza tra totale e componenti pagate
-                const totaleOrdini = emissioniResponse.result.reduce((sum: number, e: any) => sum + (e.importo || 0), 0);
-                
                 // Pattern 2: Record con stato sospeso/non regolato
-                const sospesi = emissioniResponse.result.filter((e: any) => 
+                const sospesi = emissioniResponse.result.filter((e) =>
                     e.stato?.toLowerCase().includes('sospeso') ||
                     e.statoPagamento?.toLowerCase().includes('sospeso') ||
                     e.regolato === false
                 );
-                const importoSospesi = sospesi.reduce((sum: number, e: any) => sum + (e.importo || 0), 0);
+                const importoSospesi = sospesi.reduce((sum, e) => sum + (e.importo || 0), 0);
                 
                 if (Math.abs(importoSospesi - targets.fido) < 200) {
                     results.fido.push({
@@ -304,10 +319,10 @@ export async function GET(request: Request) {
                 }
 
                 // Pattern 3: Per classe pagamento
-                const classiPagamento = [...new Set(emissioniResponse.result.map((e: any) => e.classePagamento))];
+                const classiPagamento = [...new Set(emissioniResponse.result.map((e) => e.classePagamento))];
                 for (const classe of classiPagamento) {
-                    const classeRecords = emissioniResponse.result.filter((e: any) => e.classePagamento === classe);
-                    const importoClasse = classeRecords.reduce((sum: number, e: any) => sum + (e.importo || 0), 0);
+                    const classeRecords = emissioniResponse.result.filter((e) => e.classePagamento === classe);
+                    const importoClasse = classeRecords.reduce((sum, e) => sum + (e.importo || 0), 0);
                     
                     if (Math.abs(importoClasse - targets.fido) < 200) {
                         results.fido.push({

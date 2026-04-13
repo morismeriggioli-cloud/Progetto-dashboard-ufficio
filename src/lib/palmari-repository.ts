@@ -255,7 +255,7 @@ export async function upsertPalmariDevices(records: PalmareImportRecord[]): Prom
 }
 
 export async function returnPalmareDevice(returnForm: PalmareReturnForm): Promise<void> {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from(PALMARI_DEVICES_TABLE)
     .update({ 
       status: "disponibile",

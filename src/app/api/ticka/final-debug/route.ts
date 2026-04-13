@@ -11,10 +11,8 @@ type TickaListResponse = {
   result?: unknown[];
 };
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    
     console.log(`🔍 DEBUG FINALE: /ReportEmissioni/EmissioniPerData`);
     
     // Test 1: Base con data di ieri

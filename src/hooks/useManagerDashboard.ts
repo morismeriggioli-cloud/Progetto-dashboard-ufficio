@@ -438,7 +438,7 @@ export function useManagerDashboard(filters: ManagerDashboardAppliedFilters) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [filters.selectedDateRange.from, filters.selectedDateRange.to, filters.selectedPreset]);
+  }, [filters.selectedDateRange, filters.selectedPreset]);
 
   useEffect(() => {
     const controller = new AbortController();

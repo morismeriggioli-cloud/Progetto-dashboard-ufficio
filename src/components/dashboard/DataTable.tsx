@@ -1,19 +1,5 @@
 import type { ReactNode } from "react";
 
-type OrderRow = {
-  orderId: string;
-  eventId: string;
-  eventName: string;
-  orderDate: string;
-  eventDate: string;
-  tickets: number;
-  amount: number;
-  sectorName: string;
-  status: string;
-  venue: string;
-  city: string;
-};
-
 type Column<T> = {
   key: string;
   header: string;

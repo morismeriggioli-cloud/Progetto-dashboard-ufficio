@@ -14,7 +14,6 @@ import type {
   TickaDataset,
   TickaSyncMetadata 
 } from "./ticka-types";
-import { supabase } from "./supabase";
 
 // TODO: Definire i tipi per le tabelle Supabase quando create
 export type SupabaseEvent = {
@@ -113,6 +112,8 @@ export async function syncTickaDataToSupabase(
 }> {
   const errors: string[] = [];
   const synced = { events: 0, orders: 0, venues: 0 };
+  void tickaData;
+  void metadata;
 
   try {
     // TODO: Sincronizzazione eventi quando la tabella esisterà
@@ -234,7 +235,7 @@ export async function getTickaSyncStatus(): Promise<{
     return {
       status: 'disconnected',
     };
-  } catch (error) {
+  } catch {
     return {
       status: 'error',
     };

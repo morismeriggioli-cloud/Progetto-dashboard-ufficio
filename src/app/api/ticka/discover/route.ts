@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getTickaToken, fetchTicka } from "@/lib/ticka";
+import { getTickaToken } from "@/lib/ticka";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +43,7 @@ export async function GET() {
     status: number;
     success: boolean;
     error?: string;
-    sampleData?: any;
+    sampleData?: unknown;
   }> = [];
 
   try {
@@ -64,7 +64,7 @@ export async function GET() {
           cache: "no-store",
         });
 
-        let sampleData: any = null;
+        let sampleData: unknown = null;
         let error: string | undefined = undefined;
 
         try {
