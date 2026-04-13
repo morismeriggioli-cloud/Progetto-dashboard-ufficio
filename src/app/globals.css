@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --font-inter: var(--font-jakarta), "Helvetica Neue", Arial, sans-serif;
+  --font-geist-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+  --color-surface: #f6f8fb;
+  --color-card: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(78, 196, 197, 0.08), transparent 24%),
+    linear-gradient(180deg, #f8fafc 0%, #f5f7fb 100%);
+  color: var(--foreground);
+  font-family: var(--font-inter), sans-serif;
+  font-weight: 400;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  font-family: var(--font-inter), sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.interactive-chip {
+  background: #f1f5f9;
+  color: #475569;
+  border: none;
+  border-radius: 999px;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.interactive-chip:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.selected-chip {
+  background: #4ec4c5;
+  color: #ffffff;
+}
+
+.selected-chip:hover {
+  background: #4ec4c5;
+  color: #ffffff;
+}
+
+.selected-nav {
+  background: #4ec4c5;
+  color: #ffffff;
+}
+
+.selected-nav:hover {
+  background: #4ec4c5;
+  color: #ffffff;
+}
