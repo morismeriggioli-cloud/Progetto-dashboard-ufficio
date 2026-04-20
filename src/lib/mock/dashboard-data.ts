@@ -21,7 +21,7 @@ type EventBlueprint = {
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const SALES_LOOKBACK_DAYS = 365;
+const MOCK_DATA_YEARS = [2025, 2026];
 const sectorNames = [
   "Platea Gold",
   "Platea",
@@ -142,7 +142,12 @@ function addDays(date: Date, days: number) {
 }
 
 function formatIsoDate(date: Date) {
-  return startOfDay(date).toISOString().slice(0, 10);
+  const normalized = startOfDay(date);
+  const year = normalized.getFullYear();
+  const month = String(normalized.getMonth() + 1).padStart(2, "0");
+  const day = String(normalized.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function splitAmount(total: number, parts: number, index: number) {
@@ -159,10 +164,35 @@ function splitTickets(total: number, parts: number, index: number) {
   return base + (index < remainder ? 1 : 0);
 }
 
-function buildMockMfDataset(): MfDataset {
-  const today = startOfDay(new Date());
-  const firstSalesDay = addDays(today, -(SALES_LOOKBACK_DAYS - 1));
+function getCampaignAnchorDate(year: number) {
+  return startOfDay(new Date(year, 3, 16));
+}
 
+function getYearStartDate(year: number) {
+  return startOfDay(new Date(year, 0, 1));
+}
+
+function getYearEndDate(year: number) {
+  return startOfDay(new Date(year, 11, 31));
+}
+
+function getSalesDaysForYear(year: number) {
+  return Math.round((getYearEndDate(year).getTime() - getYearStartDate(year).getTime()) / MS_PER_DAY) + 1;
+}
+
+function getYearEventId(eventId: string, year: number) {
+  return `${eventId}-${year}`;
+}
+
+function getYearEventName(eventName: string, year: number) {
+  if (/\b20\d{2}\b/.test(eventName)) {
+    return eventName.replace(/\b20\d{2}\b/g, String(year));
+  }
+
+  return `${eventName} ${year}`;
+}
+
+function buildMockMfDataset(): MfDataset {
   const venduto: MfVendutoRecord[] = [];
   const ordini: MfOrdineRecord[] = [];
   const eventi: MfEventoRecord[] = [];
@@ -170,91 +200,99 @@ function buildMockMfDataset(): MfDataset {
 
   let orderSequence = 1000;
 
-  eventBlueprints.forEach((blueprint, eventIndex) => {
-    const eventDate = addDays(today, blueprint.eventDateOffsetDays);
-    const eventDateIso = formatIsoDate(eventDate);
-    let cumulativeTickets = 0;
+  MOCK_DATA_YEARS.forEach((year) => {
+    const campaignAnchor = getCampaignAnchorDate(year);
+    const firstSalesDay = getYearStartDate(year);
+    const salesDays = getSalesDaysForYear(year);
 
-    for (let dayIndex = 0; dayIndex < SALES_LOOKBACK_DAYS; dayIndex += 1) {
-      const currentDate = addDays(firstSalesDay, dayIndex);
-      const currentDateIso = formatIsoDate(currentDate);
-      const daysToEvent = Math.max(
-        1,
-        Math.round((eventDate.getTime() - currentDate.getTime()) / MS_PER_DAY)
-      );
-      const proximityBoost = Math.max(0, 1 - daysToEvent / 140);
-      const monthlySeasonality =
-        Math.sin((dayIndex + blueprint.seasonalOffset * 9) / 7.4) * 0.18 +
-        Math.cos((dayIndex + eventIndex * 11) / 18) * 0.12;
-      const weekendBoost = currentDate.getDay() === 0 || currentDate.getDay() === 6 ? 1.18 : 1;
-      const growthFactor = 1 + (dayIndex / SALES_LOOKBACK_DAYS) * blueprint.demandTrend;
-      const rawTickets =
-        blueprint.baselineDemand * growthFactor * (1 + proximityBoost * 1.55 + monthlySeasonality);
-      const ticketsForDay = Math.max(0, Math.round(rawTickets * weekendBoost));
+    eventBlueprints.forEach((blueprint, eventIndex) => {
+      const eventId = getYearEventId(blueprint.eventId, year);
+      const eventName = getYearEventName(blueprint.eventName, year);
+      const eventDate = addDays(campaignAnchor, blueprint.eventDateOffsetDays);
+      const eventDateIso = formatIsoDate(eventDate);
+      let cumulativeTickets = 0;
 
-      if (ticketsForDay === 0 || cumulativeTickets >= blueprint.capacity) {
-        continue;
-      }
+      for (let dayIndex = 0; dayIndex < salesDays; dayIndex += 1) {
+        const currentDate = addDays(firstSalesDay, dayIndex);
+        const currentDateIso = formatIsoDate(currentDate);
+        const daysToEvent = Math.max(
+          1,
+          Math.round((eventDate.getTime() - currentDate.getTime()) / MS_PER_DAY)
+        );
+        const proximityBoost = Math.max(0, 1 - daysToEvent / 140);
+        const monthlySeasonality =
+          Math.sin((dayIndex + blueprint.seasonalOffset * 9) / 7.4) * 0.18 +
+          Math.cos((dayIndex + eventIndex * 11) / 18) * 0.12;
+        const weekendBoost = currentDate.getDay() === 0 || currentDate.getDay() === 6 ? 1.18 : 1;
+        const growthFactor = 1 + (dayIndex / salesDays) * blueprint.demandTrend;
+        const rawTickets =
+          blueprint.baselineDemand * growthFactor * (1 + proximityBoost * 1.55 + monthlySeasonality);
+        const ticketsForDay = Math.max(0, Math.round(rawTickets * weekendBoost));
 
-      const remainingCapacity = blueprint.capacity - cumulativeTickets;
-      const soldToday = Math.min(remainingCapacity, ticketsForDay);
-      const dynamicPrice =
-        blueprint.baseTicketPrice *
-        (1 + proximityBoost * 0.16 + Math.max(0, monthlySeasonality) * 0.07);
-      const totalAmount = Math.round(soldToday * dynamicPrice);
-      const orderCount = Math.max(3, Math.round(soldToday / 2.7));
-
-      for (let orderIndex = 0; orderIndex < orderCount; orderIndex += 1) {
-        const orderId = `ORD-${orderSequence}`;
-        orderSequence += 1;
-
-        const amount = splitAmount(totalAmount, orderCount, orderIndex);
-        const tickets = splitTickets(soldToday, orderCount, orderIndex);
-
-        if (tickets <= 0 || amount <= 0) {
+        if (ticketsForDay === 0 || cumulativeTickets >= blueprint.capacity) {
           continue;
         }
 
-        venduto.push({
-          eventId: blueprint.eventId,
-          eventName: blueprint.eventName,
-          date: currentDateIso,
-          amount,
-          tickets,
-          orderId,
-        });
+        const remainingCapacity = blueprint.capacity - cumulativeTickets;
+        const soldToday = Math.min(remainingCapacity, ticketsForDay);
+        const dynamicPrice =
+          blueprint.baseTicketPrice *
+          (1 + proximityBoost * 0.16 + Math.max(0, monthlySeasonality) * 0.07);
+        const totalAmount = Math.round(soldToday * dynamicPrice);
+        const orderCount = Math.max(3, Math.round(soldToday / 2.7));
 
-        ordini.push({
-          orderId,
-          eventId: blueprint.eventId,
-          eventName: blueprint.eventName,
-          orderDate: currentDateIso,
-          eventDate: eventDateIso,
-          amount,
-          tickets,
-          sectorName: sectorNames[(orderIndex + eventIndex) % sectorNames.length],
-          status: orderIndex % 17 === 0 ? "In verifica" : "Confermato",
-          venue: blueprint.venue,
-          city: blueprint.city,
-        });
+        for (let orderIndex = 0; orderIndex < orderCount; orderIndex += 1) {
+          const orderId = `ORD-${year}-${orderSequence}`;
+          orderSequence += 1;
+
+          const amount = splitAmount(totalAmount, orderCount, orderIndex);
+          const tickets = splitTickets(soldToday, orderCount, orderIndex);
+
+          if (tickets <= 0 || amount <= 0) {
+            continue;
+          }
+
+          venduto.push({
+            eventId,
+            eventName,
+            date: currentDateIso,
+            amount,
+            tickets,
+            orderId,
+          });
+
+          ordini.push({
+            orderId,
+            eventId,
+            eventName,
+            orderDate: currentDateIso,
+            eventDate: eventDateIso,
+            amount,
+            tickets,
+            sectorName: sectorNames[(orderIndex + eventIndex) % sectorNames.length],
+            status: orderIndex % 17 === 0 ? "In verifica" : "Confermato",
+            venue: blueprint.venue,
+            city: blueprint.city,
+          });
+        }
+
+        cumulativeTickets += soldToday;
       }
 
-      cumulativeTickets += soldToday;
-    }
+      eventi.push({
+        eventId,
+        eventName,
+        date: eventDateIso,
+        isActive: blueprint.isActive ?? true,
+        venue: blueprint.venue,
+      });
 
-    eventi.push({
-      eventId: blueprint.eventId,
-      eventName: blueprint.eventName,
-      date: eventDateIso,
-      isActive: blueprint.isActive ?? true,
-      venue: blueprint.venue,
-    });
-
-    disponibilita.push({
-      eventId: blueprint.eventId,
-      eventName: blueprint.eventName,
-      date: eventDateIso,
-      availableTickets: Math.max(0, blueprint.capacity - cumulativeTickets),
+      disponibilita.push({
+        eventId,
+        eventName,
+        date: eventDateIso,
+        availableTickets: Math.max(0, blueprint.capacity - cumulativeTickets),
+      });
     });
   });
 

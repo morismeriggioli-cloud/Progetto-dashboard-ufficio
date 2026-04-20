@@ -227,11 +227,13 @@ function isRowInBusinessOrderRange(
   }
 
   const businessOrderDate = row.businessOrderDate || row.emissionDate;
-  if (fromDate && businessOrderDate < fromDate) {
-    return false;
-  }
+  const emissionDate = row.emissionDate;
+  const isInBusinessRange =
+    (!fromDate || businessOrderDate >= fromDate) && (!toDate || businessOrderDate <= toDate);
+  const isInEmissionRange =
+    (!fromDate || emissionDate >= fromDate) && (!toDate || emissionDate <= toDate);
 
-  if (toDate && businessOrderDate > toDate) {
+  if (!isInBusinessRange && !isInEmissionRange) {
     return false;
   }
 
@@ -240,6 +242,18 @@ function isRowInBusinessOrderRange(
   }
 
   return true;
+}
+
+function getBusinessOrderDateInRange(
+  row: TickaEmissioneNormalizedRow,
+  fromDate: string | null,
+  toDate: string | null
+) {
+  const businessOrderDate = row.businessOrderDate || row.emissionDate;
+  const isInBusinessRange =
+    (!fromDate || businessOrderDate >= fromDate) && (!toDate || businessOrderDate <= toDate);
+
+  return isInBusinessRange ? businessOrderDate : row.emissionDate;
 }
 
 function isRowInAccountingRange(
@@ -363,6 +377,7 @@ export function buildOrdersView(
   });
 
   filteredRows.forEach((row) => {
+    const orderDate = getBusinessOrderDateInRange(row, fromDate, toDate);
     const emissionAmount = getEmissionAmount(row);
     const presaleAmount = getPresaleAmount(row);
     const managementFeeAmount = getManagementFeeAmount(row);
@@ -372,7 +387,7 @@ export function buildOrdersView(
       orderId: row.orderNumber,
       eventId: row.eventId,
       eventName: row.eventName || "Evento non disponibile",
-      orderDate: row.businessOrderDate || row.emissionDate,
+      orderDate,
       eventDate: row.eventDate,
       ticketsCount: 0,
       subscriptionsCount: 0,
@@ -390,8 +405,8 @@ export function buildOrdersView(
     current.eventId = current.eventId || row.eventId;
     current.eventName = current.eventName || row.eventName || "Evento non disponibile";
     current.orderDate =
-      !current.orderDate || ((row.businessOrderDate || row.emissionDate) && (row.businessOrderDate || row.emissionDate) < current.orderDate)
-        ? (row.businessOrderDate || row.emissionDate)
+      !current.orderDate || (orderDate && orderDate < current.orderDate)
+        ? orderDate
         : current.orderDate;
     current.eventDate = current.eventDate || row.eventDate;
     current.venueName = current.venueName || row.venueName;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getMockMfDataset } from "@/lib/mock/dashboard-data";
 import { buildTickaDashboardRange } from "@/lib/ticka-metric-formulas";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,198 @@ function resolveRange(request: Request) {
   }
 
   return { from, to, eventId, includeRawDebug, mode };
+}
+
+function round(value: number) {
+  return Number(value.toFixed(2));
+}
+
+function createFallbackMetric(value: number | null, sourceLabel: string, reason: string) {
+  return {
+    value,
+    status: value === null ? "missing" : "confirmed",
+    sourceLabel,
+    deltaAbs: null,
+    deltaPct: null,
+    debug: {
+      reason,
+    },
+  };
+}
+
+function buildMockDashboardFallback(from: string, to: string, eventId: string | null, startedAt: number) {
+  const dataset = getMockMfDataset();
+  const sourceLabel = "Mock MF 2025/2026";
+  const venduto = dataset.venduto.filter(
+    (row) => row.date >= from && row.date <= to && (!eventId || row.eventId === eventId)
+  );
+  const ordini = dataset.ordini.filter(
+    (row) => row.orderDate >= from && row.orderDate <= to && (!eventId || row.eventId === eventId)
+  );
+
+  if (venduto.length === 0 && ordini.length === 0) {
+    return null;
+  }
+
+  const revenueByDate = new Map<string, number>();
+  const ticketsByDate = new Map<string, number>();
+  const ordersByDate = new Map<string, number>();
+  const ordersByEvent = new Map<string, { eventId: string; eventName: string; ordersCount: number }>();
+  const availableEvents = new Map<string, { eventId: string; eventName: string }>();
+
+  venduto.forEach((row) => {
+    revenueByDate.set(row.date, round((revenueByDate.get(row.date) ?? 0) + row.amount));
+    ticketsByDate.set(row.date, round((ticketsByDate.get(row.date) ?? 0) + row.tickets));
+    availableEvents.set(row.eventId, { eventId: row.eventId, eventName: row.eventName });
+  });
+
+  ordini.forEach((row) => {
+    ordersByDate.set(row.orderDate, (ordersByDate.get(row.orderDate) ?? 0) + 1);
+    const currentEvent = ordersByEvent.get(row.eventId) ?? {
+      eventId: row.eventId,
+      eventName: row.eventName,
+      ordersCount: 0,
+    };
+    currentEvent.ordersCount += 1;
+    ordersByEvent.set(row.eventId, currentEvent);
+    availableEvents.set(row.eventId, { eventId: row.eventId, eventName: row.eventName });
+  });
+
+  const orderRows = ordini
+    .map((row) => ({
+      orderId: row.orderId,
+      eventId: row.eventId,
+      eventName: row.eventName,
+      orderDate: row.orderDate,
+      eventDate: row.eventDate ?? "",
+      ticketsCount: row.tickets,
+      subscriptionsCount: 0,
+      amountTotal: round(row.amount),
+      sectorLabel: row.sectorName ?? "",
+      status: "COMPLETATO",
+      venueName: row.venue ?? "",
+      city: row.city ?? "",
+      province: "",
+      cancelledLines: 0,
+      activeLines: 1,
+    }))
+    .sort((a, b) => b.orderDate.localeCompare(a.orderDate));
+
+  const fatturatoTotale = round(venduto.reduce((sum, row) => sum + row.amount, 0));
+  const bigliettiVenduti = venduto.reduce((sum, row) => sum + row.tickets, 0);
+  const ordiniTotali = orderRows.length;
+  const valoreMedioOrdine = ordiniTotali > 0 ? round(fatturatoTotale / ordiniTotali) : null;
+  const ticketMediPerOrdine = ordiniTotali > 0 ? round(bigliettiVenduti / ordiniTotali) : null;
+  const dates = Array.from(new Set([...revenueByDate.keys(), ...ordersByDate.keys()])).sort((a, b) =>
+    a.localeCompare(b)
+  );
+  const revenueSeries = Array.from(revenueByDate.entries())
+    .map(([date, value]) => ({ date, value: round(value) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const ticketsSeries = Array.from(ticketsByDate.entries())
+    .map(([date, value]) => ({ date, value: round(value) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const andamentoOrdiniNelTempo = Array.from(ordersByDate.entries())
+    .map(([date, ordersCount]) => ({ date, ordersCount }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const fallbackReason = "Fallback usato per date senza righe Ticka live ma presenti nel mock MF.";
+  const payload = {
+    fatturatoTotale: createFallbackMetric(fatturatoTotale, sourceLabel, fallbackReason),
+    fido: createFallbackMetric(null, sourceLabel, "Dato non presente nel mock MF."),
+    annulli: createFallbackMetric(0, sourceLabel, "Nessun annullo nel mock MF."),
+    gestioneAmministrativa: createFallbackMetric(0, sourceLabel, "Dato non separato nel mock MF."),
+    prevendita: createFallbackMetric(0, sourceLabel, "Dato non separato nel mock MF."),
+    overCommission: createFallbackMetric(0, sourceLabel, "Dato non separato nel mock MF."),
+    giftCard: createFallbackMetric(null, sourceLabel, "Dato non presente nel mock MF."),
+    cartaCultura: createFallbackMetric(null, sourceLabel, "Dato non presente nel mock MF."),
+    cartaDocente: createFallbackMetric(null, sourceLabel, "Dato non presente nel mock MF."),
+    bigliettiEmessi: createFallbackMetric(bigliettiVenduti, sourceLabel, fallbackReason),
+    sourceLabel,
+    warnings: [
+      "Ticka non ha restituito righe per il periodo richiesto: dati caricati dal mock MF 2025/2026.",
+    ],
+    summary: {
+      ordiniTotali,
+      bigliettiVenduti,
+      abbonamentiVenduti: 0,
+      abbonamentiOpenVenduti: 0,
+      totaleEmissioni: fatturatoTotale,
+      totalePrevendita: 0,
+      totaleGestioneAmministrativa: 0,
+      totaleCommissioni: 0,
+      fatturatoTotale,
+      valoreMedioOrdine,
+      ticketMediPerOrdine,
+    },
+    charts: {
+      andamentoOrdiniNelTempo,
+      ordiniPerEvento: Array.from(ordersByEvent.values())
+        .sort((a, b) => b.ordersCount - a.ordersCount)
+        .slice(0, 8),
+    },
+    ordersTable: {
+      total: orderRows.length,
+      page: 1,
+      pageSize: orderRows.length,
+      rows: orderRows,
+    },
+    debug: {
+      orders: {
+        sourceMode: "mock-mf-fallback",
+        fixtureFileUsed: null,
+        emissioniRangeFinalUrl: `${from}:${to}`,
+        emissioniRawRowCount: venduto.length,
+        emissioniNormalizedRowCount: venduto.length,
+        eventIdFilterApplied: eventId,
+        rowsAfterEventFilter: ordini.length,
+        groupedOrderCount: orderRows.length,
+        ordersTableRowsCount: orderRows.length,
+      },
+      dataSource: {
+        sourceMode: "mock-mf-fallback",
+        fixtureFileUsed: null,
+        generatedDatesCount: dates.length,
+        totalDates: dates.length,
+        cacheHits: 0,
+        cacheMisses: 0,
+        rawRowCount: venduto.length,
+        normalizedRowCount: venduto.length,
+        ordiniTotali,
+        bigliettiVenduti,
+        emissioniDateMin: dates[0] ?? null,
+        emissioniDateMax: dates[dates.length - 1] ?? null,
+        totalDurationMs: Date.now() - startedAt,
+      },
+    },
+  };
+
+  return {
+    success: true,
+    hasRealData: true,
+    from,
+    to,
+    filters: {
+      from,
+      to,
+      eventId,
+    },
+    payload,
+    sourceLabel,
+    availableEvents: Array.from(availableEvents.values()).sort((a, b) =>
+      a.eventName.localeCompare(b.eventName, "it")
+    ),
+    revenueSeries,
+    ticketsSeries,
+    prevenditaSeries: revenueSeries.map((point) => ({ date: point.date, value: 0 })),
+    fatturatoTotaleSeries: revenueSeries,
+    annulliSeries: revenueSeries.map((point) => ({ date: point.date, value: 0 })),
+    rangeUsed: {
+      from,
+      to,
+      dates,
+    },
+    timestamp: new Date().toISOString(),
+  };
 }
 
 export async function GET(request: Request) {
@@ -151,6 +344,21 @@ export async function GET(request: Request) {
         ordersTableRowsSample: ordersDebug.ordersTableRowsSample,
       });
     }
+    const isTickaEmpty =
+      result.summary.ordiniTotali === 0 &&
+      result.summary.bigliettiVenduti === 0 &&
+      result.summary.fatturatoTotale === 0;
+    const isTickaOrderless = result.summary.ordiniTotali === 0 || ordersView.rows.length === 0;
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const includesFuture = to > todayIso;
+    const mockFallback = isTickaEmpty || isTickaOrderless || includesFuture
+      ? buildMockDashboardFallback(from, to, eventId, startedAt)
+      : null;
+
+    if (mockFallback) {
+      return NextResponse.json(mockFallback);
+    }
+
     const hasRealData = Object.values(result.payload).some((metric) => metric.value !== null);
     const warnings = Object.entries(result.payload)
       .filter(([, metric]) => metric.status === "missing")

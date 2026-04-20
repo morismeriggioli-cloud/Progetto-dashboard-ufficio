@@ -79,6 +79,10 @@ type TickaDashboardResponse = {
   success: boolean;
   hasRealData: boolean;
   payload: TickaDashboardPayload;
+  availableEvents?: Array<{
+    eventId: string;
+    eventName: string;
+  }>;
   timestamp?: string;
   from?: string;
   to?: string;
@@ -347,7 +351,7 @@ export function useManagerDashboard(filters: ManagerDashboardAppliedFilters) {
       return;
     }
 
-    const requestKey = `${filters.selectedPreset}:${from}:${to}`;
+    const requestKey = `${filters.selectedPreset}:${from}:${to}:${filters.selectedEventId ?? "all"}`;
     const params = new URLSearchParams();
 
     if (from) {
@@ -356,6 +360,10 @@ export function useManagerDashboard(filters: ManagerDashboardAppliedFilters) {
 
     if (to) {
       params.set("to", to);
+    }
+
+    if (filters.selectedEventId) {
+      params.set("eventId", filters.selectedEventId);
     }
 
     currentRequestKeyRef.current = requestKey;
@@ -438,7 +446,7 @@ export function useManagerDashboard(filters: ManagerDashboardAppliedFilters) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [filters.selectedDateRange, filters.selectedPreset]);
+  }, [filters.selectedDateRange, filters.selectedEventId, filters.selectedPreset]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -485,7 +493,10 @@ export function useManagerDashboard(filters: ManagerDashboardAppliedFilters) {
       hasLiveData: response.hasRealData,
       filterOptions: {
         organizers: [],
-        events: [],
+        events: (response.availableEvents ?? []).map((event) => ({
+          value: event.eventId,
+          label: event.eventName,
+        })),
         stores: [],
         venues: [],
         eventStatuses: [],
