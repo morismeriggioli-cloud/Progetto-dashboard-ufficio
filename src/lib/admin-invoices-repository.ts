@@ -16,6 +16,10 @@ function isRlsError(message: string) {
   return normalized.includes("row-level security policy");
 }
 
+function getSupabaseUnavailableMessage() {
+  return "Configurazione Supabase non valida o client non disponibile.";
+}
+
 function sortInvoices(records: AdminInvoiceRecord[]) {
   return [...deduplicateInvoicesByNumber(records.map((record) => ({
     ...record,
@@ -26,6 +30,10 @@ function sortInvoices(records: AdminInvoiceRecord[]) {
 }
 
 export async function fetchAdminInvoices() {
+  if (!supabase) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from(ADMIN_INVOICES_TABLE)
     .select("*")
@@ -40,6 +48,10 @@ export async function fetchAdminInvoices() {
 }
 
 async function fallbackSaveByInvoiceNumber(records: AdminInvoiceRecord[]) {
+  if (!supabase) {
+    return [];
+  }
+
   const invoiceNumbers = records.map((record) => record.invoice_number);
 
   const { data: existingRows, error: existingRowsError } = await supabase
@@ -128,6 +140,10 @@ export async function upsertAdminInvoices(records: AdminInvoiceRecord[]) {
     return [];
   }
 
+  if (!supabase) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from(ADMIN_INVOICES_TABLE)
     .upsert(records, { onConflict: "invoice_number" })
@@ -151,6 +167,10 @@ export async function upsertAdminInvoices(records: AdminInvoiceRecord[]) {
 }
 
 export async function updateAdminInvoiceCategory(id: string, category: string) {
+  if (!supabase) {
+    throw new Error(getSupabaseUnavailableMessage());
+  }
+
   const { data, error } = await supabase
     .from(ADMIN_INVOICES_TABLE)
     .update({ category })
