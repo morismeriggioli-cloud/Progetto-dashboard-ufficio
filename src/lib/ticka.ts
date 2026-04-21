@@ -17,9 +17,32 @@ import type {
   TickaSyncMetadata,
 } from "./ticka-types";
 
-const TICKA_BASE_URL = process.env.TICKA_BASE_URL || "https://ws-duemondi.ticka.it";
-const TICKA_USERNAME = process.env.TICKA_USERNAME || "";
-const TICKA_PASSWORD = process.env.TICKA_PASSWORD || "";
+function readRuntimeEnv(name: "TICKA_BASE_URL" | "TICKA_USERNAME" | "TICKA_PASSWORD") {
+  const directProcessEnvValue = typeof process !== "undefined" ? process.env?.[name] : undefined;
+  if (typeof directProcessEnvValue === "string" && directProcessEnvValue.length > 0) {
+    return directProcessEnvValue;
+  }
+
+  const globalProcessEnvValue = globalThis.process?.env?.[name];
+  if (typeof globalProcessEnvValue === "string" && globalProcessEnvValue.length > 0) {
+    return globalProcessEnvValue;
+  }
+
+  const workerEnv = (globalThis as Record<string, unknown>).__ENV__;
+  if (workerEnv && typeof workerEnv === "object") {
+    const workerEnvValue = (workerEnv as Record<string, unknown>)[name];
+    if (typeof workerEnvValue === "string" && workerEnvValue.length > 0) {
+      return workerEnvValue;
+    }
+  }
+
+  const globalValue = (globalThis as Record<string, unknown>)[name];
+  return typeof globalValue === "string" && globalValue.length > 0 ? globalValue : undefined;
+}
+
+const TICKA_BASE_URL = readRuntimeEnv("TICKA_BASE_URL") || "https://ws-duemondi.ticka.it";
+const TICKA_USERNAME = readRuntimeEnv("TICKA_USERNAME") || "";
+const TICKA_PASSWORD = readRuntimeEnv("TICKA_PASSWORD") || "";
 
 let tokenCache: {
   token: string | null;
