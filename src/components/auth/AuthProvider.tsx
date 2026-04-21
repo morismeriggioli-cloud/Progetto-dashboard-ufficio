@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import type { Session, User } from "@supabase/supabase-js";
 import { translateAuthError } from "@/lib/auth-error";
 import type { UserRole } from "@/lib/roles";
-import { supabase, supabaseAuthStorageKey } from "@/lib/supabase";
+import { hasValidSupabaseConfig, supabase, supabaseAuthStorageKey } from "@/lib/supabase";
 
 type LoginResult =
   | { success: true; session: Session | null }
@@ -580,6 +580,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       role,
       async login(email, password) {
+        if (!hasValidSupabaseConfig) {
+          return {
+            success: false,
+            error: "Configurazione Supabase non valida.",
+          };
+        }
+
         if (!supabase) {
           return {
             success: false,
