@@ -351,7 +351,7 @@ export async function GET(request: Request) {
     const isTickaOrderless = result.summary.ordiniTotali === 0 || ordersView.rows.length === 0;
     const todayIso = new Date().toISOString().slice(0, 10);
     const includesFuture = to > todayIso;
-    const shouldUseMockFallback = isTickaEmpty || includesFuture;
+    const shouldUseMockFallback = false;
     console.log("[ticka-dashboard] fallback decision", {
       isTickaEmpty,
       isTickaOrderless,
