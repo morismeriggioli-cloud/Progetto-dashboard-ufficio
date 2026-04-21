@@ -230,6 +230,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
       }
 
+      if (!supabase) {
+        console.error("[auth] Supabase client unavailable while refreshing profile");
+
+        const fallbackProfile = buildProfile(activeUser, {
+          id: profileId,
+          email: activeUser?.email ?? "",
+          full_name:
+            typeof activeUser?.user_metadata?.full_name === "string"
+              ? activeUser.user_metadata.full_name
+              : null,
+          role: effectiveRole ?? null,
+        });
+        profileRef.current = fallbackProfile;
+        setProfile(fallbackProfile);
+        setProfileError(null);
+        setIsProfileMissing(false);
+        setProfileLoadingState(false);
+        return "ok";
+      }
+
       setProfileLoadingState(true);
       profileRef.current = null;
       setProfile(null);
@@ -402,6 +422,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
+    console.log("[auth] bootstrap effect entered");
 
     const loadSession = async () => {
       console.log("[auth] loading initial session");
@@ -409,12 +430,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let data: { session: Session | null } = { session: null };
       let error: { message?: string; code?: string } | null = null;
 
+      if (!supabase) {
+        console.error("[auth] Supabase client unavailable during bootstrap");
+        clearProfileState();
+        console.log("[auth] setting isLoading=false because Supabase client is unavailable");
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const result = await supabase.auth.getSession();
+        console.log("[auth] calling supabase.auth.getSession()");
+        const result = await withTimeout(
+          supabase.auth.getSession(),
+          5000,
+          "Bootstrap sessione Supabase"
+        );
+        console.log("[auth] supabase.auth.getSession() resolved", {
+          hasSession: !!result.data.session,
+          userId: result.data.session?.user?.id ?? null,
+          error: result.error ?? null,
+        });
         data = result.data;
         error = result.error;
       } catch (caughtError) {
-        console.error("[auth] getSession network error:", caughtError);
+        console.log("[auth] supabase.auth.getSession() threw", caughtError);
+        if (caughtError instanceof Error && caughtError.message.includes("Bootstrap sessione Supabase timeout")) {
+          console.error(
+            "[auth] initial getSession timeout after 5000ms, falling back to unauthenticated state",
+            caughtError
+          );
+        } else {
+          console.error("[auth] getSession network error:", caughtError);
+        }
         error = { message: getNetworkErrorMessage(caughtError) };
       }
 
@@ -430,6 +477,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         clearProfileState();
+        console.log("[auth] setting isLoading=false after getSession error");
         setIsLoading(false);
         return;
       }
@@ -441,6 +489,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       sessionRef.current = data.session ?? null;
       setSession(data.session ?? null);
+      console.log("[auth] setting isLoading=false after initial session load");
       setIsLoading(false);
 
       if (data.session?.user?.id) {
@@ -454,9 +503,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void loadSession();
 
+    if (!supabase) {
+      return () => {
+        console.log("[auth] bootstrap effect cleanup");
+        isMounted = false;
+      };
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+      console.log("[auth] onAuthStateChange callback entered", {
+        event,
+        userId: nextSession?.user?.id ?? null,
+        hasSession: !!nextSession,
+      });
       const currentSession = sessionRef.current;
 
       console.log("[auth] session status changed:", {
@@ -475,6 +536,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       sessionRef.current = nextSession;
       setSession(nextSession);
+      console.log("[auth] setting isLoading=false from onAuthStateChange");
       setIsLoading(false);
 
       if (!nextSession?.user) {
@@ -494,6 +556,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => {
+      console.log("[auth] bootstrap effect cleanup");
       isMounted = false;
       subscription.unsubscribe();
     };
@@ -517,6 +580,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       role,
       async login(email, password) {
+        if (!supabase) {
+          return {
+            success: false,
+            error: "Configurazione Supabase non valida.",
+          };
+        }
+
         const authTimeoutMs = 10000;
         let data: { session: Session | null } = { session: null };
         let error: { message?: string } | null = null;
@@ -595,6 +665,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       },
       async logout() {
+        if (!supabase) {
+          clearPersistedAuthStorage();
+          sessionRef.current = null;
+          setSession(null);
+          clearProfileState();
+          router.push("/login");
+          return;
+        }
+
         let error: { message?: string } | null = null;
 
         try {
